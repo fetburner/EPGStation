@@ -160,14 +160,15 @@ dbType: mysql
 
 #### MySQL の接続設定（MySQL 使用時は必須）
 
-| 子プロパティ名 | 種類   | 必須 | 説明                         |
-| -------------- | ------ | ---- | ---------------------------- |
-| host           | string | yes  | MySQL が動作するホスト名     |
-| port           | number | no   | MySQL が待ち受けるポート番号 |
-| user           | string | yes  | DB 接続用のユーザー名        |
-| password       | string | yes  | DB 接続用のパスワード        |
-| database       | string | yes  | 使用するデータベース名       |
-| charset        | string | no   | 使用する文字コード           |
+| 子プロパティ名 | 種類   | 必須 | 説明                                 |
+| -------------- | ------ | ---- | ------------------------------------ |
+| host           | string | yes  | MySQL が動作するホスト名             |
+| port           | number | no   | MySQL が待ち受けるポート番号         |
+| socketPath     | string | no   | MySQL が待ち受けるソケットのフルパス |
+| user           | string | yes  | DB 接続用のユーザー名                |
+| password       | string | yes  | DB 接続用のパスワード                |
+| database       | string | yes  | 使用するデータベース名               |
+| charset        | string | no   | 使用する文字コード                   |
 
 ```yaml
 mysql:

@@ -35,6 +35,7 @@ switch (config.dbtype) {
             type: 'mysql',
             host: config.mysql.host,
             port: config.mysql.port,
+            socketPath: config.mysql.socketPath,
             username: config.mysql.user,
             password: config.mysql.password,
             database: config.mysql.database,

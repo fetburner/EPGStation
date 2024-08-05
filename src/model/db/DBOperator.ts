@@ -60,6 +60,7 @@ export default class DBOperator implements IDBOperator {
                 type: 'mysql',
                 host: this.config.mysql.host,
                 port: this.config.mysql.port,
+                socketPath: this.config.mysql.socketPath,
                 username: this.config.mysql.user,
                 password: this.config.mysql.password,
                 database: this.config.mysql.database,
