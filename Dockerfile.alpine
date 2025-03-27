@@ -7,7 +7,8 @@ RUN npm config set fetch-retries 10 \
     && npm config set fetch-retry-maxtimeout 600000
 RUN npm install --no-save --loglevel=info
 COPY . /app/
-RUN npm run build --loglevel=info
+RUN npm run build --loglevel=info \
+    && npm prune --omit=dev
 
 FROM node:18-alpine3.19 AS server-builder
 RUN apk add --no-cache g++ make pkgconf python3 py3-pip
@@ -23,7 +24,8 @@ RUN npm config set fetch-retries 10 \
 RUN npm install --no-save --loglevel=info
 COPY . .
 RUN rm -rf client
-RUN npm run build-server --loglevel=info
+RUN npm run build-server --loglevel=info \
+    && npm prune --omit=dev
 
 FROM node:18-alpine
 LABEL maintainer="l3tnun"

@@ -10,7 +10,8 @@ RUN npm config set fetch-retries 10 \
 RUN npm install --no-save --loglevel=info
 # clientフォルダー外にビルドに必要なファイルが存在するため、全てコピーする。
 COPY . /app/
-RUN npm run build --loglevel=info
+RUN npm run build --loglevel=info \
+    && npm prune --omit=dev
 
 # サーバーはsqlite3のようなプラットフォーム依存のネイティブ・アドオンを含んでいる。そのため、各
 # TARGETPLATFORMごとにソースをビルドしなければならない。BUILDPLATFORM以外のTARGETPLATFORMでは、QEMU
@@ -36,7 +37,8 @@ RUN npm install --no-save --loglevel=info
 # をコピーする方法は，ファイルが追加された場合に変更する必要があるため採用しない。
 COPY . .
 RUN rm -rf client
-RUN npm run build-server --loglevel=info
+RUN npm run build-server --loglevel=info \
+    && npm prune --omit=dev
 
 FROM node:18-bookworm-slim
 LABEL maintainer="l3tnun"
