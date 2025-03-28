@@ -8,7 +8,7 @@ RUN npm config set fetch-retries 10 \
 RUN npm install --no-save --loglevel=info
 COPY . /app/
 RUN npm run build --loglevel=info \
-    && npm prune --omit=dev
+    && rm -rf node_modules
 
 FROM node:18-alpine3.19 AS server-builder
 RUN apk add --no-cache g++ make pkgconf python3 py3-pip
