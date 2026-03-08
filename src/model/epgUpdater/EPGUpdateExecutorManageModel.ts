@@ -1,6 +1,7 @@
 import * as child_process from 'child_process';
 import { inject, injectable } from 'inversify';
 import * as path from 'path';
+import PROJECT_ROOT from '../../projectRoot';
 import IEPGUpdateEvent from '../event/IEPGUpdateEvent';
 import ILogger from '../ILogger';
 import ILoggerModel from '../ILoggerModel';
@@ -24,7 +25,7 @@ export default class EPGUpdateExecutorManageModel implements IEPGUpdateExecutorM
      * EPGUpdateExecutor を実行する
      */
     public async execute(): Promise<void> {
-        const executor = child_process.spawn(process.argv[0], [path.join(__dirname, 'EPGUpdateExecutor.js')], {
+        const executor = child_process.spawn(process.argv[0], [path.join(PROJECT_ROOT, 'dist', 'EPGUpdateExecutor.js')], {
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         });
 

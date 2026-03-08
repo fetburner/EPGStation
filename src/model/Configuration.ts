@@ -3,6 +3,7 @@ import { inject, injectable } from 'inversify';
 import * as yaml from 'js-yaml';
 import * as path from 'path';
 import urljoin from 'url-join';
+import PROJECT_ROOT from '../projectRoot';
 import IConfigFile from './IConfigFile';
 import IConfiguration from './IConfiguration';
 import ILogger from './ILogger';
@@ -211,9 +212,9 @@ class Configuration implements IConfiguration {
 }
 
 namespace Configuration {
-    export const CONFIG_FILE_PATH = path.join(__dirname, '..', '..', 'config', 'config.yml');
-    export const CONFIG_TEMPLATE_FILE_PATH = path.join(__dirname, '..', '..', 'config', 'config.yml.template');
-    export const ROOT_PATH = path.join(__dirname, '..', '..').replace(new RegExp(`\\${path.sep}$`), '');
+    export const CONFIG_FILE_PATH = path.join(PROJECT_ROOT, 'config', 'config.yml');
+    export const CONFIG_TEMPLATE_FILE_PATH = path.join(PROJECT_ROOT, 'config', 'config.yml.template');
+    export const ROOT_PATH = PROJECT_ROOT.replace(new RegExp(`\\${path.sep}$`), '');
 
     export const DEFAULT_VALUE: IConfigFile = {
         mirakurunPath: 'http+unix://%2Fvar%2Frun%2Fmirakurun.sock/',
@@ -232,18 +233,18 @@ namespace Configuration {
         recorded: [
             {
                 name: 'recorded',
-                path: path.join(__dirname, '..', '..', 'recorded'),
+                path: path.join(PROJECT_ROOT, 'recorded'),
             },
         ],
         recordedHistoryRetentionPeriodDays: 90,
         storageLimitCheckIntervalTime: 60,
-        thumbnail: path.join(__dirname, '..', '..', 'thumbnail'),
+        thumbnail: path.join(PROJECT_ROOT, 'thumbnail'),
         thumbnailCmd:
             '%FFMPEG% -ss %THUMBNAIL_POSITION% -y -i %INPUT% -vframes 1 -f image2 -s %THUMBNAIL_SIZE% %OUTPUT%',
         thumbnailSize: '480x270',
         thumbnailPosition: 5,
-        dropLog: path.join(__dirname, '..', '..', 'drop'),
-        uploadTempDir: path.join(__dirname, '..', '..', 'data', 'upload'),
+        dropLog: path.join(PROJECT_ROOT, 'drop'),
+        uploadTempDir: path.join(PROJECT_ROOT, 'data', 'upload'),
         isEnabledDropCheck: false,
         ffmpeg: '/usr/local/bin/ffmpeg',
         ffprobe: '/usr/local/bin/ffprobe',
@@ -264,7 +265,7 @@ namespace Configuration {
                 ios: 'vlc-x-callback://x-callback-url/stream?url=PROTOCOL%3A%2F%2FADDRESS&filename=FILENAME',
             },
         },
-        streamFilePath: path.join(__dirname, '..', '..', 'data', 'streamfiles'),
+        streamFilePath: path.join(PROJECT_ROOT, 'data', 'streamfiles'),
     };
 }
 

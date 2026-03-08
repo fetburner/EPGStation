@@ -3,6 +3,7 @@ import { inject, injectable } from 'inversify';
 import mirakurun from 'mirakurun';
 import * as path from 'path';
 import * as url from 'url';
+import PROJECT_ROOT from '../projectRoot';
 import IConfigFile from './IConfigFile';
 import IConfiguration from './IConfiguration';
 import IMirakurunClientModel from './IMirakurunClientModel';
@@ -26,7 +27,7 @@ export default class MirakurunClientModel implements IMirakurunClientModel {
      * mirakurun client の設定
      */
     private setClient(): void {
-        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json')).toString());
+        const pkg = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json')).toString());
         const mirakurunPath = this.config.mirakurunPath;
 
         /**

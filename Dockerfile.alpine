@@ -24,12 +24,28 @@ RUN npm install --no-save --loglevel=info
 COPY . .
 RUN rm -rf client
 RUN npm run build-server --loglevel=info
+# devDependencies を除去し、実行時に必要な dependencies のみ残す
+RUN npm prune --omit=dev
 
 FROM node:18-alpine
 LABEL maintainer="l3tnun"
-COPY --from=server-builder /app /app/
-COPY --from=client-builder /app/client /app/client/
-EXPOSE 8888
 WORKDIR /app
+
+# webpack バンドル
+COPY --from=server-builder /app/dist /app/dist/
+
+# 実行時に必要なファイル
+COPY --from=server-builder /app/api.yml /app/api.yml
+COPY --from=server-builder /app/package.json /app/package.json
+COPY --from=server-builder /app/config /app/config/
+COPY --from=server-builder /app/img /app/img/
+
+# dependencies のみの node_modules をコピー
+COPY --from=server-builder /app/node_modules /app/node_modules/
+
+# client
+COPY --from=client-builder /app/client /app/client/
+
+EXPOSE 8888
 ENTRYPOINT ["npm"]
 CMD ["start"]

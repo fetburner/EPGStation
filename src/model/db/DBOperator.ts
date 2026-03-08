@@ -1,6 +1,25 @@
 import * as path from 'path';
 import { inject, injectable } from 'inversify';
 import { DataSource } from 'typeorm';
+import PROJECT_ROOT from '../../projectRoot';
+import Channel from '../../db/entities/Channel';
+import DropLogFile from '../../db/entities/DropLogFile';
+import Program from '../../db/entities/Program';
+import Recorded from '../../db/entities/Recorded';
+import RecordedHistory from '../../db/entities/RecordedHistory';
+import RecordedTag from '../../db/entities/RecordedTag';
+import Reserve from '../../db/entities/Reserve';
+import Rule from '../../db/entities/Rule';
+import Thumbnail from '../../db/entities/Thumbnail';
+import VideoFile from '../../db/entities/VideoFile';
+// SQLite migrations
+import { Init1601185891878 as SqliteInit } from '../../db/migrations/sqlite/1601185891878-Init';
+import { AddRawExtended1624085241577 as SqliteAddRawExtended } from '../../db/migrations/sqlite/1624085241577-AddRawExtended';
+import { AddEventRelay1716647355956 as SqliteAddEventRelay } from '../../db/migrations/sqlite/1716647355956-AddEventRelay';
+// MySQL migrations
+import { Init1601186196169 as MysqlInit } from '../../db/migrations/mysql/1601186196169-Init';
+import { AddRawExtended1624084351785 as MysqlAddRawExtended } from '../../db/migrations/mysql/1624084351785-AddRawExtended';
+import { AddEventRelay1716647383635 as MysqlAddEventRelay } from '../../db/migrations/mysql/1716647383635-AddEventRelay';
 import IConfigFile from '../IConfigFile';
 import IConfiguration from '../IConfiguration';
 import ILogger from '../ILogger';
@@ -32,26 +51,22 @@ export default class DBOperator implements IDBOperator {
      * @returns DataSource
      */
     private async createConnection(): Promise<DataSource> {
-        // アプリのルートディレクトリ
-        const appRootPath = path.join(__dirname, '..', '..', '..');
-
-        // dist 下のディレクトリ設定
-        const distDBBasePath = path.join(appRootPath, 'dist', 'db');
-        const entitie = path.join(distDBBasePath, 'entities', '**', '*.js');
-        const subscriber = path.join(distDBBasePath, 'subscribers', '**', '*.js');
-
-        // マイグレーションファイルの場所
-        const migrations = [path.join(distDBBasePath, 'migrations', this.config.dbtype, '**', '*.js')];
+        const entities = [Channel, DropLogFile, Program, Recorded, RecordedHistory, RecordedTag, Reserve, Rule, Thumbnail, VideoFile];
+        const subscribers: any[] = [];
+        const migrations =
+            this.config.dbtype === 'sqlite'
+                ? [SqliteInit, SqliteAddRawExtended, SqliteAddEventRelay]
+                : [MysqlInit, MysqlAddRawExtended, MysqlAddEventRelay];
 
         let connection: DataSource;
         if (this.config.dbtype === 'sqlite') {
             connection = new DataSource({
                 type: 'sqlite',
-                database: path.join(appRootPath, 'data', 'database.db'),
+                database: path.join(PROJECT_ROOT, 'data', 'database.db'),
                 synchronize: false,
                 logging: false,
-                entities: [entitie],
-                subscribers: [subscriber],
+                entities: entities,
+                subscribers: subscribers,
                 migrationsRun: true,
                 migrations: migrations,
             });
@@ -67,8 +82,8 @@ export default class DBOperator implements IDBOperator {
                 bigNumberStrings: false,
                 synchronize: false,
                 logging: false,
-                entities: [entitie],
-                subscribers: [subscriber],
+                entities: entities,
+                subscribers: subscribers,
                 migrationsRun: true,
                 migrations: migrations,
                 ssl: this.config.mysql.ssl,
