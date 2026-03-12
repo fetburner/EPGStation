@@ -29,6 +29,9 @@
     },
     "author": "l3tnun",
     "license": "MIT",
+    "sideEffects": [
+        "reflect-metadata"
+    ],
     "bugs": {
         "url": "https://github.com/l3tnun/EPGStation-V2/issues"
     },

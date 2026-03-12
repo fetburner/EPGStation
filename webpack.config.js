@@ -70,7 +70,26 @@ module.exports = {
         ),
     ],
     optimization: {
-        minimize: false,
+        minimize: true,
+        usedExports: true,
+        splitChunks: {
+            chunks: 'all',
+            cacheGroups: {
+                vendor: {
+                    test: /[\\/]node_modules[\\/]/,
+                    name: 'vendor',
+                    chunks: 'all',
+                    priority: 10,
+                },
+                common: {
+                    name: 'common',
+                    minChunks: 2,
+                    chunks: 'all',
+                    priority: 5,
+                    reuseExistingChunk: true,
+                },
+            },
+        },
     },
     ignoreWarnings: [
         // express の動的 require
