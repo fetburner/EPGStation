@@ -3,7 +3,6 @@ import { injectable } from 'inversify';
 import * as yaml from 'js-yaml';
 import * as log4js from 'log4js';
 import * as path from 'path';
-import PROJECT_ROOT from '../projectRoot';
 import ILogger from './ILogger';
 import ILoggerModel from './ILoggerModel';
 
@@ -115,7 +114,7 @@ export default class LoggerModel implements ILoggerModel {
      * @return file path
      */
     private createDefaultLogPath(dir: string, filename: string): string {
-        const logFileFullPath = path.join(PROJECT_ROOT, 'logs', dir, filename);
+        const logFileFullPath = path.join(process.cwd(), 'logs', dir, filename);
 
         return process.platform === 'win32' ? logFileFullPath.replace(/\\/g, '\\\\') : logFileFullPath;
     }

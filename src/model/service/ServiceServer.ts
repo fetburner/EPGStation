@@ -13,7 +13,6 @@ import multer from 'multer';
 import { OpenAPIV3 } from 'openapi-types';
 import * as path from 'path';
 import urljoin from 'url-join';
-import PROJECT_ROOT from '../../projectRoot';
 import FileUtil from '../../util/FileUtil';
 import IConfigFile from '../IConfigFile';
 import IConfiguration from '../IConfiguration';
@@ -151,7 +150,7 @@ class ServiceServer implements IServiceServer {
      */
     private setStaticFiles(): void {
         // static files
-        this.app.use(this.createUrl('/img'), express.static(path.join(PROJECT_ROOT, 'img')));
+        this.app.use(this.createUrl('/img'), express.static(path.join(process.cwd(), 'img')));
 
         // thumbnail
         this.app.use(this.createUrl('/thumbnail'), express.static(this.config.thumbnail));
@@ -330,11 +329,11 @@ class ServiceServer implements IServiceServer {
 }
 
 namespace ServiceServer {
-    export const API_YML = path.join(PROJECT_ROOT, 'api.yml');
-    export const PACKAGE_JSON = path.join(PROJECT_ROOT, 'package.json');
-    export const SWAGGER_UI_DIST = path.join(PROJECT_ROOT, 'node_modules', 'swagger-ui-dist');
-    export const API_DIR = path.join(PROJECT_ROOT, 'dist', 'model', 'service', 'api');
-    export const CLIENT_DIR = path.join(PROJECT_ROOT, 'client', 'dist');
+    export const API_YML = path.join(process.cwd(), 'api.yml');
+    export const PACKAGE_JSON = path.join(process.cwd(), 'package.json');
+    export const SWAGGER_UI_DIST = path.join(process.cwd(), 'node_modules', 'swagger-ui-dist');
+    export const API_DIR = path.join(process.cwd(), 'dist', 'model', 'service', 'api');
+    export const CLIENT_DIR = path.join(process.cwd(), 'client', 'dist');
 }
 
 export default ServiceServer;

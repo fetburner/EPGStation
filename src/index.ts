@@ -2,7 +2,6 @@ import * as child_process from 'child_process';
 import * as path from 'path';
 import 'reflect-metadata';
 import { install } from 'source-map-support';
-import PROJECT_ROOT from './projectRoot';
 import IEPGUpdateExecutorManageModel from './model/epgUpdater/IEPGUpdateExecutorManageModel';
 import IEventSetter from './model/event/IEventSetter';
 import IConfiguration from './model/IConfiguration';
@@ -59,7 +58,7 @@ const init = async () => {
     }
 
     // uid, gid が設定されてから再度 log 再設定
-    logger.initialize(path.join(PROJECT_ROOT, 'config', 'operatorLogConfig.yml'));
+    logger.initialize(path.join(process.cwd(), 'config', 'operatorLogConfig.yml'));
 
     // 接続確認
     const connectionChecker = container.get<IConnectionCheckModel>('IConnectionCheckModel');
@@ -96,7 +95,7 @@ const runOperator = async () => {
 const runService = async () => {
     const child = child_process.spawn(
         process.argv[0],
-        [path.join(PROJECT_ROOT, 'dist', 'ServiceExecutor.js')],
+        [path.join(process.cwd(), 'dist', 'ServiceExecutor.js')],
         {
             stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
         },

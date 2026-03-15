@@ -1,7 +1,6 @@
 import * as path from 'path';
 import { inject, injectable } from 'inversify';
 import { DataSource } from 'typeorm';
-import PROJECT_ROOT from '../../projectRoot';
 import Channel from '../../db/entities/Channel';
 import DropLogFile from '../../db/entities/DropLogFile';
 import Program from '../../db/entities/Program';
@@ -62,7 +61,7 @@ export default class DBOperator implements IDBOperator {
         if (this.config.dbtype === 'sqlite') {
             connection = new DataSource({
                 type: 'sqlite',
-                database: path.join(PROJECT_ROOT, 'data', 'database.db'),
+                database: path.join(process.cwd(), 'data', 'database.db'),
                 synchronize: false,
                 logging: false,
                 entities: entities,

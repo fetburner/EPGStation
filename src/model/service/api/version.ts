@@ -1,13 +1,12 @@
 import { Operation } from 'express-openapi';
 import * as fs from 'fs';
 import * as path from 'path';
-import PROJECT_ROOT from '../../../projectRoot';
-import * as api from '../api';
+import process.cwd() from '../../../projectRoot';
 
 export const get: Operation = async (_req, res) => {
     try {
         const pkg = <any>(
-            JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf-8'))
+            JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'))
         );
         api.responseJSON(res, 200, { version: pkg.version });
     } catch (err: any) {

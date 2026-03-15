@@ -1,7 +1,6 @@
 import * as path from 'path';
 import 'reflect-metadata';
 import { install } from 'source-map-support';
-import PROJECT_ROOT from '../../projectRoot';
 import ILoggerModel from '../ILoggerModel';
 import container from '../ModelContainer';
 import * as containerSetter from '../ModelContainerSetter';
@@ -12,7 +11,7 @@ install();
 containerSetter.set(container);
 
 const loggerModel = container.get<ILoggerModel>('ILoggerModel');
-loggerModel.initialize(path.join(PROJECT_ROOT, 'config', 'serviceLogConfig.yml'));
+loggerModel.initialize(path.join(process.cwd(), 'config', 'serviceLogConfig.yml'));
 
 const log = loggerModel.getLogger();
 process.on('uncaughtException', err => {
