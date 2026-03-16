@@ -1,7 +1,7 @@
 import { Operation } from 'express-openapi';
 import * as fs from 'fs';
 import * as path from 'path';
-import process.cwd() from '../../../projectRoot';
+import * as api from '../api';
 
 export const get: Operation = async (_req, res) => {
     try {
