@@ -40,7 +40,7 @@ namespace ProcessUtil {
         args: string[];
     }
 
-    export const ROOT_PATH = path.join(__dirname, '..', '..').replace(new RegExp(`\\${path.sep}$`), '');
+    export const ROOT_PATH = process.cwd().replace(new RegExp(`\\${path.sep}$`), '');
 
     /**
      * 渡された cmd 文字列を bin と args に分離する

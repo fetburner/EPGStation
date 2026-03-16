@@ -57,6 +57,8 @@ module.exports = {
         'diskusage-ng': 'commonjs diskusage-ng',
         // swagger-ui-dist はファイルシステムアクセスが必要
         'swagger-ui-dist': 'commonjs swagger-ui-dist',
+        // mirakurun は __dirname + fs.readFileSync で api.yml を読み込むためバンドル不可
+        mirakurun: 'commonjs mirakurun',
     },
     plugins: [
         // TypeORM が動的に require する不要なドライバーを無視
