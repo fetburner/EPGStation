@@ -8,6 +8,19 @@ import IConfiguration from './IConfiguration';
 import ILogger from './ILogger';
 import ILoggerModel from './ILoggerModel';
 
+const envType = new yaml.Type('!env', {
+    kind: 'scalar',
+    resolve: (data: string) => typeof data === 'string',
+    construct: (data: string) => {
+        const value = process.env[data];
+        if (typeof value === 'undefined') {
+            throw new Error(`environment variable ${data} is not defined`);
+        }
+        return value;
+    },
+});
+const ENV_SCHEMA = yaml.DEFAULT_SCHEMA.extend([envType]);
+
 /**
  * Configuration
  * コンフィグ設定取得
@@ -33,7 +46,7 @@ class Configuration implements IConfiguration {
         fs.watchFile(Configuration.CONFIG_FILE_PATH, async () => {
             this.log.system.info('updated config file');
             try {
-                const newConfig = <any>yaml.load(await fs.promises.readFile(Configuration.CONFIG_FILE_PATH, 'utf-8'));
+                const newConfig = <any>yaml.load(await fs.promises.readFile(Configuration.CONFIG_FILE_PATH, 'utf-8'), { schema: ENV_SCHEMA });
                 this.config = this.formatConfig(newConfig);
             } catch (err: any) {
                 this.log.system.error('read config error');
@@ -77,7 +90,7 @@ class Configuration implements IConfiguration {
         }
 
         // parse configFile
-        const newConfig: IConfigFile = <any>yaml.load(str);
+        const newConfig: IConfigFile = <any>yaml.load(str, { schema: ENV_SCHEMA });
 
         return this.formatConfig(newConfig);
     }
