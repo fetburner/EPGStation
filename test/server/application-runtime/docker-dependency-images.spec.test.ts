@@ -152,13 +152,15 @@ describe('依存の計画: base は製品の Dockerfile が固定した digest �
 });
 
 describe('依存の計画: 層は製品の Dockerfile から導く', () => {
-    it('[AR-10.6] server は OS の層と npm の層、client は npm の層だけを、Dockerfile の出現順（debian、alpine）で計画する', async () => {
+    it('[AR-10.6] base は OS の層、server は OS の層と npm の層、client は npm の層だけを、Dockerfile の出現順（debian、alpine）で計画する', async () => {
         const root = await fixtureRoot();
         const plan = planDependencyImages(root);
         expect(plan.images.map(image => `${image.kind}/${image.layer}`)).toEqual([
+            'debian-base/os',
             'debian-client/npm',
             'debian-server/os',
             'debian-server/npm',
+            'alpine-base/os',
             'alpine-client/npm',
             'alpine-server/os',
             'alpine-server/npm',
@@ -166,7 +168,7 @@ describe('依存の計画: 層は製品の Dockerfile から導く', () => {
         for (const image of plan.images) {
             expect(image.tag).toMatch(
                 image.layer === 'os'
-                    ? /^epgstation-deps-os-(?:debian|alpine)-server:[0-9a-f]{12}$/u
+                    ? /^epgstation-deps-os-(?:debian|alpine)-(?:base|server):[0-9a-f]{12}$/u
                     : /^epgstation-deps-(?:debian|alpine)-(?:client|server):[0-9a-f]{12}$/u,
             );
         }
@@ -206,6 +208,14 @@ describe('依存の計画: 層は製品の Dockerfile から導く', () => {
             expect(found, `${kind}/${layer}`).toBeDefined();
             return found!;
         };
+        // base は stage 全体が OS の層で、builder の層とは別に持つ。
+        for (const flavor of ['debian', 'alpine']) {
+            const base = image(`${flavor}-base`, 'os');
+            expect(base.dockerfile).toMatch(/apt-get install -y --no-install-recommends tini|apk add tini/u);
+            expect(base.dockerfile).not.toMatch(/WORKDIR|npm ci|build-essential|g\+\+/u);
+            expect(base.manifests).toEqual([]);
+        }
+
         const debianOs = image('debian-server', 'os');
         const debianNpm = image('debian-server', 'npm');
         expect(debianOs.dockerfile).toContain('apt-get install -y build-essential python3');
@@ -286,8 +296,18 @@ describe('依存の計画: 導けない形は終了 code 2 の入力の誤りに
         [
             'FROM の後の空白が 2 つ以上ある行がある',
             'Dockerfile.alpine',
-            text => text.replace(/^FROM node:24-alpine@(sha256:[0-9a-f]{64})$/mu, 'FROM  node:24-alpine@$1'),
+            text =>
+                text.replace(
+                    /^FROM node:24-alpine@(sha256:[0-9a-f]{64}) AS base$/mu,
+                    'FROM  node:24-alpine@$1 AS base',
+                ),
             'from-line-malformed',
+        ],
+        [
+            'base stage が無い',
+            'Dockerfile.alpine',
+            text => text.replace(/ AS base$/mu, ' AS renamed').replace(/^FROM base\b/gmu, 'FROM renamed'),
+            'base-stage-missing',
         ],
         [
             'builder stage が無い',
@@ -312,7 +332,7 @@ describe('依存の計画: 導けない形は終了 code 2 の入力の誤りに
             'Dockerfile.alpine',
             text =>
                 text
-                    .replace(/^RUN apk add .*$/mu, '')
+                    .replace(/^RUN apk add --no-cache g\+\+ .*$/mu, '')
                     .replace(/^RUN pip install .*$/mu, '')
                     .replace(/^# node-sqlite3.*$/gmu, ''),
             'os-layer-missing',
@@ -379,9 +399,17 @@ describe('依存の計画: lock file の変更で作り直す層', () => {
         expect(changed(before, tagsByKind(root))).toEqual(['debian-server/npm', 'debian-server/os']);
     });
 
-    it('[AR-10.7] 実リポジトリの tag は、古い image の削除のために OS の層 2 つと npm の層 4 つを列挙する', () => {
+    it('[AR-10.7] base stage の digest の変更で、その flavor の base の層だけが変わる', async () => {
+        const root = await fixtureRoot();
+        const before = tagsByKind(root);
+        const pinned = pinnedBases(await readFile(join(root, 'Dockerfile.debian'), 'utf8')).get('node:24-trixie-slim')!;
+        await editDockerfile(root, 'Dockerfile.debian', text => text.replace(pinned, `sha256:${'f'.repeat(64)}`));
+        expect(changed(before, tagsByKind(root))).toEqual(['debian-base/os']);
+    });
+
+    it('[AR-10.7] 実リポジトリの tag は、古い image の削除のために OS の層 4 つと npm の層 4 つを列挙する', () => {
         const tags = dependencyImageTags(repositoryRoot);
-        expect(tags.filter(tag => tag.startsWith('epgstation-deps-os-'))).toHaveLength(2);
+        expect(tags.filter(tag => tag.startsWith('epgstation-deps-os-'))).toHaveLength(4);
         expect(tags.filter(tag => !tag.startsWith('epgstation-deps-os-'))).toHaveLength(4);
     });
 });
@@ -612,12 +640,14 @@ describe('依存の準備: 外部取得をする唯一の場所', () => {
         it('[AR-10.9] OS の層の build の失敗も、その層の名前で止まる', async () => {
             const root = await fixtureRoot();
             const plan = planDependencyImages(root);
-            const docker = fakeDocker([...plan.bases.map(base => base.ref), plan.images[0].tag], {
-                buildx: { code: 100, stdout: '', stderr: 'E: Unable to locate package' },
-            });
+            const target = plan.images.findIndex(image => image.kind === 'debian-server' && image.layer === 'os');
+            const docker = fakeDocker(
+                [...plan.bases.map(base => base.ref), ...plan.images.slice(0, target).map(image => image.tag)],
+                { buildx: { code: 100, stdout: '', stderr: 'E: Unable to locate package' } },
+            );
             const { sleep } = noSleep();
             await expect(prepareDependencyImages({ root, run: docker.run, sleep })).rejects.toMatchObject({
-                what: `build ${plan.images[1].tag}`,
+                what: `build ${plan.images[target].tag}`,
             });
         });
     });
@@ -813,6 +843,21 @@ describe('確認の本体: 準備済みの確認', () => {
         },
     );
 
+    it.each(['debian', 'alpine'])(
+        '[AR-10.10] %s: base の層が無ければ not-prepared で、その tag を示す',
+        async flavor => {
+            const root = await fixtureRoot();
+            const missing = tagsByKind(root)[`${flavor}-base/os`];
+            const present = new Set(allImageRefs(root));
+            present.delete(missing);
+            const failure = await verifyPrepared({ root, run: checkRun(present).run, flavor }).catch(
+                (error: unknown) => error,
+            );
+            expect(failure).toMatchObject({ reason: 'not-prepared' });
+            expect((failure as Error).message).toContain(missing);
+        },
+    );
+
     it('[AR-10.10] base が無い、または lock file の更新で現在の tag の層が無ければ、準備されていない', async () => {
         const root = await fixtureRoot();
         const present = new Set(allImageRefs(root));
@@ -834,7 +879,7 @@ describe('確認の本体: 準備済みの確認', () => {
 
 describe('確認の本体: 製品の Dockerfile から導いた Dockerfile', () => {
     it.each(['debian', 'alpine'])(
-        '[AR-10.2] %s: 各 builder stage の依存の部分が npm の層の tag の FROM 1 行になり、それ以外の行は製品のまま',
+        '[AR-10.2] %s: base stage が base の層の tag の FROM 1 行に、各 builder stage の依存の部分が npm の層の tag の FROM 1 行になり、それ以外の行は製品のまま',
         async flavor => {
             const root = await fixtureRoot();
             const plan = planDependencyImages(root);
@@ -843,11 +888,21 @@ describe('確認の本体: 製品の Dockerfile から導いた Dockerfile', () 
 
             const stages = plan.stages.filter(stage => stage.flavor === flavor);
             expect(stages.map(stage => stage.stage)).toEqual(['client-builder', 'server-builder']);
+            const base = plan.baseStages.find(stage => stage.flavor === flavor)!;
+            expect(base.tag).toBe(tagsByKind(root)[`${flavor}-base/os`]);
+            const replaced = [
+                { from: base.from, to: base.end, line: `FROM ${base.tag} AS base` },
+                ...stages.map(stage => ({
+                    from: stage.from,
+                    to: stage.copy,
+                    line: `FROM ${stage.npmTag} AS ${stage.stage}`,
+                })),
+            ].sort((a, b) => a.from - b.from);
             const expected: string[] = [];
             let cursor = 0;
-            for (const stage of stages) {
-                expected.push(...product.slice(cursor, stage.from), `FROM ${stage.npmTag} AS ${stage.stage}`);
-                cursor = stage.copy;
+            for (const range of replaced) {
+                expected.push(...product.slice(cursor, range.from), range.line);
+                cursor = range.to;
             }
             expected.push(...product.slice(cursor));
             expect(derived).toEqual(expected);
@@ -859,17 +914,15 @@ describe('確認の本体: 製品の Dockerfile から導いた Dockerfile', () 
                 expect(derived[at + 1].startsWith('COPY . '), stage.stage).toBe(true);
                 expect(derived[at + 1]).toBe(product[stage.copy]);
             }
-            // 外から取る FROM は最終 stage の base だけ。依存を入れる行は残らない。
+            // 外から取る FROM は無く、最終 stage は製品のまま base から作る。依存を入れる行は残らない。
             const text = derived.join('\n');
             expect(text).not.toMatch(/npm ci|apt-get|apk add|pip install/u);
             expect(text).toContain('RUN npm run compile');
             expect(text).toContain('RUN npm run bundle');
             expect(text).toContain('RUN rm -rf client');
-            const productLastFrom = product.filter(line => line.startsWith('FROM ')).pop()!;
             expect([...text.matchAll(/^FROM (\S+)/gmu)].map(match => match[1])).toEqual([
-                stages[0].npmTag,
-                stages[1].npmTag,
-                /^FROM (\S+)/u.exec(productLastFrom)![1],
+                ...replaced.map(range => /^FROM (\S+)/u.exec(range.line)![1]),
+                'base',
             ]);
         },
     );

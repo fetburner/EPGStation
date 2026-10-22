@@ -8,7 +8,9 @@
  *
  * 層は製品の `Dockerfile.debian`・`Dockerfile.alpine` から導く。各 builder stage（`client-builder`・
  * `server-builder`）で、`FROM` から最初の行頭 `COPY . `（ソース全体の copy）の直前までを依存の部分と
- * する（comment と空行は除く）。層の Dockerfile を手書きで持たない。
+ * する（comment と空行は除く）。`base` stage（実行時に要る OS の package を入れる stage）は全体を
+ * 依存の部分とする。層の Dockerfile を手書きで持たない。
+ *   0. `base` の層: `base` stage の全体。確認の Dockerfile では、最終 stage をこの層から作る。
  *   1. OS の package の層（server 用だけ）: 依存の部分のうち、最初の `WORKDIR` の直前まで。
  *      tag は層の内容（base の digest を含む）から決まる。lock file が変わっても作り直さない。
  *   2. npm の層: 1 の層（client 用は OS の package を使わないので base 自身）の上に、依存の部分の
@@ -26,6 +28,9 @@ import { dirname, join } from 'node:path';
 const DOCKERFILES = Object.freeze(['Dockerfile.debian', 'Dockerfile.alpine']);
 const IMAGE_ID = /^(?:sha256:)?[0-9a-f]{64}$/u;
 const PINNED_REF = /^(.+)@(sha256:[0-9a-f]{64})$/u;
+
+/** 実行時に要る OS の package を入れる stage の名前。最終 stage はこの stage から作る。 */
+const BASE_STAGE = 'base';
 
 /** builder stage の名前と、その stage が入れる manifest。server 用だけが OS の package の層を持つ。 */
 const BUILDER_STAGES = Object.freeze({
@@ -157,7 +162,7 @@ function dependencyPart(stage, spec) {
             `${stage.file} ${stage.name} has no line that starts with "COPY . "`,
         );
     }
-    const lines = body.slice(0, copy).filter(line => line.trim() !== '' && !/^\s*#/u.test(line));
+    const lines = instructionLines(body.slice(0, copy));
     let osLines = [];
     let npmLines = lines;
     if (spec.kind === 'server') {
@@ -180,6 +185,11 @@ function dependencyPart(stage, spec) {
     return { osLines, npmLines, copyLine: stage.from + 1 + copy };
 }
 
+/** comment と空行を除いた行。 */
+function instructionLines(lines) {
+    return lines.filter(line => line.trim() !== '' && !/^\s*#/u.test(line));
+}
+
 function layerDockerfile(ref, lines) {
     return `FROM ${ref}\n${lines.join('\n')}\n`;
 }
@@ -188,12 +198,15 @@ function layerDockerfile(ref, lines) {
  * 依存 image の計画。
  *
  * - `bases`: 製品の Dockerfile が固定している base（`ref` は `<tag>@<Dockerfile の digest>`）。
- * - `images`: build 順の依存 image。`layer` が `os` か `npm`。`npm` の層だけが確認の Dockerfile の
- *   `FROM` に使われる（`flavor` と `kind` ごとに 1 つ）。
+ * - `images`: build 順の依存 image。`layer` が `os` か `npm`。`npm` の層と `base` の層が確認の
+ *   Dockerfile の `FROM` に使われる（`flavor` と `kind` ごとに 1 つ）。
+ * - `baseStages`: 各 flavor の `base` stage が占める行（`from` は `FROM` の行、`end` は次の stage の
+ *   `FROM` の行、どちらも 0 起点）と、`base` の層の tag。
  * - `stages`: 各 builder stage の依存の部分が占める行（`from` は `FROM` の行、`copy` は最初の
  *   `COPY . ` の行、どちらも 0 起点）と、その stage の npm の層の tag。
  *
- * tag は、OS の層が `epgstation-deps-os-<flavor>-<kind>:<h12>`（層の内容。base の digest を含む）、
+ * tag は、OS の層（`base` の層を含む）が `epgstation-deps-os-<flavor>-<kind>:<h12>`（層の内容。base の
+ * digest を含む）、
  * npm の層が `epgstation-deps-<flavor>-<kind>:<h12>`（層の内容と manifest の内容。server 用の層は
  * OS の層の tag を含むので、OS の層が変わると npm の層の tag も変わる）。
  */
@@ -206,7 +219,24 @@ export function planDependencyImages(root) {
     const bases = collectBases(parsed);
     const images = [];
     const stages = [];
+    const baseStages = [];
     for (const { file, flavor, stages: fileStages } of parsed) {
+        const base = fileStages.find(candidate => candidate.name === BASE_STAGE);
+        if (base === undefined) {
+            throw new DependencyImagePlanError('base-stage-missing', `${file} has no ${BASE_STAGE} stage`);
+        }
+        const baseKind = `${flavor}-${BASE_STAGE}`;
+        const baseDockerfile = layerDockerfile(base.ref, instructionLines(base.lines.slice(base.from + 1, base.end)));
+        const baseTag = `epgstation-deps-os-${baseKind}:${hash12(['os-layer', baseKind, baseDockerfile])}`;
+        images.push({
+            kind: baseKind,
+            layer: 'os',
+            tag: baseTag,
+            dockerfile: baseDockerfile,
+            baseRef: base.ref,
+            manifests: [],
+        });
+        baseStages.push({ file, flavor, stage: BASE_STAGE, from: base.from, end: base.end, tag: baseTag });
         for (const [name, spec] of Object.entries(BUILDER_STAGES)) {
             const stage = fileStages.find(candidate => candidate.name === name);
             if (stage === undefined) {
@@ -233,7 +263,7 @@ export function planDependencyImages(root) {
             stages.push({ file, flavor, stage: name, kind, from: stage.from, copy: part.copyLine, npmTag: tag });
         }
     }
-    return { bases, images, stages };
+    return { bases, images, stages, baseStages };
 }
 
 /** 現在の manifest に対する依存 image の tag（両方の層）。古い image の削除が使う。 */

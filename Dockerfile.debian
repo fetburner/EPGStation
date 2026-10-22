@@ -19,6 +19,17 @@ WORKDIR /app/client
 RUN npm run bundle --loglevel=info \
     && rm -rf node_modules
 
+# 実行時に要る OS の package を入れる stage。最終 image はこの stage から作る。
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS base
+# PID 1 は親を失った子孫 process を wait しなければならないが、npm（Node）は自分が spawn した
+# process しか wait しない。エンコードや外部コマンドの孫 process が親より後に終わると zombie が
+# 残り続けるため、tini を PID 1 にして回収させる。tini は受けたシグナルを npm へ転送する。
+# `--init` を付けない `docker run` や Kubernetes でも回収されるよう、tini は image に含める。
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends tini
+
 # サーバーはsqlite3のようなプラットフォーム依存のネイティブ・アドオンを含んでいる。そのため、各
 # TARGETPLATFORMごとにソースをビルドしなければならない。BUILDPLATFORM以外のTARGETPLATFORMでは、QEMU
 # 上でnpmコマンドを実行することになるため、どうしても時間が掛かる。
@@ -59,11 +70,12 @@ RUN rm -rf client
 RUN npm run compile \
     && npm prune --omit=dev
 
-FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66
+FROM base
 LABEL maintainer="l3tnun"
 COPY --from=server-builder /app /app/
 COPY --from=client-builder /app/client /app/client/
 EXPOSE 8888
 WORKDIR /app
-ENTRYPOINT ["npm"]
+# CMD で npm の引数だけを差し替える使い方を壊さないため、npm は ENTRYPOINT に残す。
+ENTRYPOINT ["/usr/bin/tini", "--", "npm"]
 CMD ["start"]

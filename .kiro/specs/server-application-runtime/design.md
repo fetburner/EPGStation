@@ -1134,7 +1134,7 @@ owner判断を新設するopen decisionはない。Implementation時は承認済
 
 | 項目 | 現状 | locator |
 | --- | --- | --- |
-| 依存の層 | OS の package の層（server のみ）と npm の層を、tag 付き image として準備 step が用意する。tag は base の digest・層の内容・manifest の sha256 の hash。本体は `docker image inspect` だけ | `scripts/server-test/dependency-images.mjs`（`planDependencyImages`、`prepareDependencyImages`） |
+| 依存の層 | OS の package の層（`base` stage と server）と npm の層を、tag 付き image として準備 step が用意する。tag は base の digest・層の内容・manifest の sha256 の hash。本体は `docker image inspect` だけ | `scripts/server-test/dependency-images.mjs`（`planDependencyImages`、`prepareDependencyImages`） |
 | 準備 step | 取得は 3 回・15 秒間隔・種類ごとの上限時間。exit 0 / 75 / 2 / 1 | `scripts/server-test/prepare-dependency-images.mjs` |
 | 層の Dockerfile | 製品の Dockerfile の依存の部分から導く（手書きの層の Dockerfile と Node の header の取得は持たない）。製品の Dockerfile は header を取らず、base image 同梱の header を `npm_package_config_node_gyp_nodedir` で使う | `scripts/server-test/dependency-images.mjs`（`planDependencyImages`）、`Dockerfile.debian`・`Dockerfile.alpine` の server-builder |
 | preflight | `deps-prepare`（container A と host）→ `docker-gate-node24`（container A）。node-matrix の Node 24 の回も同じ file を host の daemon で実行 | `scripts/release-preflight.sh`、`scripts/ci-rehearsal/job.sh`、`scripts/server-test/run-node-acceptance-matrix.mjs` |
@@ -1184,7 +1184,8 @@ flowchart LR
 | 項目 | 契約 |
 | --- | --- |
 | base の一覧 | `Dockerfile.debian`・`Dockerfile.alpine` の `FROM ...@sha256:...` をすべて読む。同じ tag が別の digest なら `DependencyImagePlanError`（exit 2） |
-| 依存の部分の導出 | 各 builder stage（`client-builder`・`server-builder`）で、`FROM` から最初の行頭 `COPY . `（ソース全体の copy）の直前までを依存の部分とする。comment と空行は除く。層の `FROM` は `<tag>@<digest>`（`--platform=$BUILDPLATFORM` は外す）。導けない形（`npm ci` の行・`COPY . ` が無いなど）は exit 2 |
+| 依存の部分の導出 | 各 builder stage（`client-builder`・`server-builder`）で、`FROM` から最初の行頭 `COPY . `（ソース全体の copy）の直前までを依存の部分とする。`base` stage は全体を依存の部分とする。comment と空行は除く。層の `FROM` は `<tag>@<digest>`（`--platform=$BUILDPLATFORM` は外す）。導けない形（`base` stage・`npm ci` の行・`COPY . ` が無いなど）は exit 2 |
+| `base` の層 | `base` stage（実行時に要る OS の package を入れ、最終 stage の `FROM` になる stage）の全体。tag は `epgstation-deps-os-<flavor>-base:<hash12>`（base の digest と層の内容） |
 | OS の package の層 | server の依存の部分のうち、最初の `WORKDIR` の直前まで。tag は `epgstation-deps-os-<kind>:<hash12>`（base の digest と層の内容） |
 | npm の層 | OS の層（client は base）の上に、残りの依存の部分と manifest。tag は `epgstation-deps-<kind>:<hash12>`（層の内容と manifest の path・sha256。server は OS の層の tag を含む） |
 | 再利用 | `package.json` または `package-lock.json` が変わると、その側（client または server）の npm の層だけ tag が変わる。OS の層と base は tag が変わらない（10.6・10.7） |
@@ -1193,11 +1194,11 @@ flowchart LR
 
 #### Prepared Verifier（`scripts/server-test/docker-image-check.mjs`）
 
-`docker image inspect` だけで、base（Dockerfile の digest と一致）と npm の層（現在の tag）が手元にあることを確かめる。無ければ理由 `not-prepared` と準備 step の command を示して失敗する。外部へは取りに行かない（10.10）。
+`docker image inspect` だけで、base（Dockerfile の digest と一致）と、`base` の層・npm の層（現在の tag）が手元にあることを確かめる。無ければ理由 `not-prepared` と準備 step の command を示して失敗する。外部へは取りに行かない（10.10）。
 
 #### Image Dockerfile Deriver（同 module）
 
-製品の Dockerfile を読み、各 builder stage の依存の部分を `FROM <npm の層の tag> AS <stage>` の 1 行に置き換えた Dockerfile を生成する。それ以外の行（`COPY . .`、`RUN rm -rf client`、`RUN npm run compile && npm prune --omit=dev`、`RUN npm run bundle && rm -rf node_modules`、最終 stage）は製品のまま。出力は `test/server/.artifacts/docker-image-check/<id>/Dockerfile` に置く。
+製品の Dockerfile を読み、`base` stage を `FROM <base の層の tag> AS base` の 1 行に、各 builder stage の依存の部分を `FROM <npm の層の tag> AS <stage>` の 1 行に置き換えた Dockerfile を生成する。それ以外の行（`COPY . .`、`RUN rm -rf client`、`RUN npm run compile && npm prune --omit=dev`、`RUN npm run bundle && rm -rf node_modules`、`FROM base` で始まる最終 stage）は製品のまま。出力は `test/server/.artifacts/docker-image-check/<id>/Dockerfile` に置く。
 
 #### Image Builder
 

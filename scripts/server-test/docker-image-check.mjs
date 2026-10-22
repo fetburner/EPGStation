@@ -87,15 +87,20 @@ async function isPresent(run, ref) {
 }
 
 /**
- * base（Dockerfile の digest で固定した ref）と、`flavor` の npm の層（現在の tag）が手元に
- * あることを `docker image inspect` だけで確かめる。無ければ `not-prepared` で失敗し、取得は
+ * base（Dockerfile の digest で固定した ref）と、`flavor` の `base` の層・npm の層（現在の tag）が
+ * 手元にあることを `docker image inspect` だけで確かめる。無ければ `not-prepared` で失敗し、取得は
  * しない。成功したら、`flavor` の npm の層の tag を `{ client, server }` で返す。
  */
 export async function verifyPrepared({ root, run, flavor }) {
     assertFlavor(flavor);
     const plan = planDependencyImages(root);
     const npmLayers = plan.images.filter(image => image.layer === 'npm' && image.kind.startsWith(`${flavor}-`));
-    const required = [...plan.bases.map(base => base.ref), ...npmLayers.map(image => image.tag)];
+    const baseLayers = plan.baseStages.filter(stage => stage.flavor === flavor);
+    const required = [
+        ...plan.bases.map(base => base.ref),
+        ...baseLayers.map(stage => stage.tag),
+        ...npmLayers.map(image => image.tag),
+    ];
     const missing = [];
     for (const ref of required) {
         if (!(await isPresent(run, ref))) {
@@ -115,16 +120,21 @@ export async function verifyPrepared({ root, run, flavor }) {
 }
 
 /**
- * 製品の Dockerfile の各 builder stage の依存の部分（`FROM` から最初の `COPY . ` の直前まで）を
- * `FROM <npm の層の tag> AS <stage>` の 1 行に置き換えた Dockerfile の文字列を返す。それ以外の行
- * は製品のまま。
+ * 製品の Dockerfile の `base` stage を `FROM <base の層の tag> AS base` の 1 行に、各 builder stage の
+ * 依存の部分（`FROM` から最初の `COPY . ` の直前まで）を `FROM <npm の層の tag> AS <stage>` の 1 行に
+ * 置き換えた Dockerfile の文字列を返す。それ以外の行は製品のまま。
  */
 export function deriveImageDockerfile({ root, flavor, plan = planDependencyImages(root) }) {
     assertFlavor(flavor);
     const lines = readFileSync(join(root, `Dockerfile.${flavor}`), 'utf8').split(/\r?\n/u);
-    const stages = plan.stages.filter(stage => stage.flavor === flavor).sort((a, b) => b.from - a.from);
-    for (const stage of stages) {
-        lines.splice(stage.from, stage.copy - stage.from, `FROM ${stage.npmTag} AS ${stage.stage}`);
+    const ranges = [
+        ...plan.baseStages.map(stage => ({ ...stage, to: stage.end })),
+        ...plan.stages.map(stage => ({ ...stage, to: stage.copy, tag: stage.npmTag })),
+    ]
+        .filter(range => range.flavor === flavor)
+        .sort((a, b) => b.from - a.from);
+    for (const range of ranges) {
+        lines.splice(range.from, range.to - range.from, `FROM ${range.tag} AS ${range.stage}`);
     }
     return lines.join('\n');
 }
